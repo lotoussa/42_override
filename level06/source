@@ -1,0 +1,79 @@
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <signal.h>
+
+int			auth(char *login, uint serial)
+{
+	size_t	len;
+	int		ret;
+	long	pRet;
+	int		idx;
+	uint	tmp_cmp;
+
+	len = strcspn(login, "\n");
+	login[len] = '\0';
+	len = strnlen(login, 0x20);
+	if ((int)len < 6)
+		ret = 1;
+	else
+	{
+		pRet = ptrace(PTRACE_TRACEME);
+		if (pRet == -1)
+		{
+			puts("\x1b[32m.---------------------------.");
+			puts("\x1b[31m| !! TAMPERING DETECTED !!  |");
+			puts("\x1b[32m\'---------------------------\'");
+			ret = 1;
+		}
+		else
+		{
+			tmp_cmp = ((int)login[3] ^ 0x1337U) + 0x5eeded;
+			idx = 0;
+			while (idx < (int)len)
+			{
+				if (login[idx] < ' ')
+					return 1;
+				tmp_cmp += # walkthrough
+				idx = idx + 1;
+			}
+		}
+		if (serial == tmp_cmp)
+			ret = 0;
+		else
+			ret = 1;
+		}
+	}
+	return (ret);
+}
+
+int			main(void)
+{
+	int		ret;
+	int		in_GS_OFFSET;
+	char	login[32];
+	int		tmp_cmp;
+
+	tmp_cmp = *(int *)(in_GS_OFFSET + 0x14);
+	puts("***********************************");
+	puts("*\t\tlevel06\t\t  *");
+	puts("***********************************");
+	printf("-> Enter Login: ");
+	fgets(login, 0x20, stdin);
+	puts("***********************************");
+	puts("***** NEW ACCOUNT DETECTED ********");
+	puts("***********************************");
+	printf("-> Enter Serial: ");
+	scanf("%u", &tmp_cmp);
+	ret = auth(login, (uint)tmp_cmp);
+	if (ret == 0)
+	{
+		puts("Authenticated!");
+		system("/bin/sh");
+	}
+	if (tmp_cmp != *(int *)(in_GS_OFFSET + 0x14))
+		__stack_chk_fail();
+	return (ret);
+}
+

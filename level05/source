@@ -1,0 +1,21 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+int			main(void)
+{
+	byte	buffer[100];
+	uint	idx;
+
+	idx = 0;
+	fgets((char *)buffer,100,stdin);
+	while (idx < strlen(buffer))
+	{
+		if (('@' < (char)buffer[idx]) && ((char)buffer[idx] < '['))
+			buffer[idx] = buffer[idx] ^ 0x20;
+		idx = idx + 1;
+	}
+	printf((char *)buffer);
+	exit(0);
+}
+

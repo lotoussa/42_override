@@ -1,0 +1,34 @@
+C'est parti.
+
+Nous avons ici un programme assez similaire au niveau 0 de rainfall, qui va juste verifier que notre input correspont a l'entier desire, c'est a dire 5276, avant d'ouvrir un shell avec l'id de level01.
+
+(gdb)
+0x080484de in main ()
+1: x/5i $pc
+=> 0x80484de <main+74>:	call   0x80483d0 <__isoc99_scanf@plt>
+   0x80484e3 <main+79>:	mov    eax,DWORD PTR [esp+0x1c]
+   0x80484e7 <main+83>:	cmp    eax,0x149c
+
+(gdb)
+
+Authenticated!
+0x080484fa in main ()
+1: x/5i $pc
+=> 0x80484fa <main+102>:	mov    DWORD PTR [esp],0x8048649
+   0x8048501 <main+109>:	call   0x80483a0 <system@plt>
+
+(gdb) x/s 0x8048649
+0x8048649:	 "/bin/sh"
+
+
+level00@OverRide:~$ ./level00
+***********************************
+* 	     -Level00 -		  *
+***********************************
+Password:5276
+
+Authenticated!
+$ whoami
+level01
+$ cat /home/users/level01/.pass
+uSq2ehEGT6c9S24zbshexZQBXUGrncxn5sD5QfGL

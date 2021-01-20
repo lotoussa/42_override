@@ -1,0 +1,160 @@
+Sur ce niveau il y a aussi des protection kernel, sur le binaire et l'utilisation de ptrace qui complique les manipulation de debugger.
+
+En examinant le code source du programme on remarque plusieurs choses:
+qu'il prends en input un Login et un Serial pour les envoyer a auth et verifier que sa sortie est egale a 0 afin d'executer bin sh, sinon de quitter le programme avec une erreur.
+Observont auth()
+Ajout d'un '\0' a Login, verification que sa len est superieur a 5 et ptrace afin d'empecher le debug.
+
+level06@OverRide:~$ ltrace ./level06
+__libc_start_main(0x8048879, 1, -10364, 0x8048990, 0x8048a00 <unfinished ...>
+signal(14, 0x0804870f)                                = NULL
+alarm(60)                                             = 0
+puts("********************************"...***********************************
+)           = 36
+puts("*\t\tlevel06\t\t  *"*		level06		  *
+)                           = 16
+puts("********************************"...***********************************
+)           = 36
+printf("-> Enter Login: ")                            = 16
+fgets(-> Enter Login: okokokok
+"okokokok\n", 32, 0xf7fcfac0)                   = 0xffffd6bc
+puts("********************************"...***********************************
+)           = 36
+puts("***** NEW ACCOUNT DETECTED *****"...***** NEW ACCOUNT DETECTED ********
+)           = 36
+puts("********************************"...***********************************
+)           = 36
+printf("-> Enter Serial: ")                           = 17
+__isoc99_scanf(0x8048a60, -10568, 0xf7fcfac0, 0x8048746, 60-> Enter Serial: 1
+) = 1
+strcspn("okokokok\n", "\n")                           = 8
+strnlen(-10564, 32, -10604, 0, -10520)                = 8
+ptrace(0, 0, 1, 0, -10520)                            = -1
+puts("\033[32m.--------------------------"....---------------------------.
+)        = 35
+puts("\033[31m| !! TAMPERING DETECTED !! "...| !! TAMPERING DETECTED !!  |
+)        = 35
+puts("\033[32m'--------------------------"...'---------------------------'
+)        = 35
++++ exited (status 1) +++
+level06@OverRide:~$
+
+Essayons premierement de passer outre ptrace avec la redirection de bibliotheque.
+
+level06@OverRide:~$ vim /tmp/ptrace.c
+long ptrace(int request, int pid, void *addr, void *data) {
+    return 0;
+}
+
+level06@OverRide:~$ gcc -m32 -shared /tmp/ptrace.c -o /tmp/ptrace.so
+
+level06@OverRide:~$ file /tmp/ptrace.so
+/tmp/ptrace.so: ELF 32-bit LSB shared object, Intel 80386, version 1 (SYSV), dynamically linked, BuildID[sha1]=0xf67fcdb72c997ae5333074c25471d92dc885fba7, not stripped
+level06@OverRide:~$ file ./level06
+
+./level06: setuid setgid ELF 32-bit LSB executable, Intel 80386, version 1 (SYSV), dynamically linked (uses shared libs), for GNU/Linux 2.6.24, BuildID[sha1]=0x459bcb819bfdde7ecfa5612c8445e7dd0831cc48, not stripped
+
+level06@OverRide:~$ echo $LD_PRELOAD
+
+level06@OverRide:~$ export LD_PRELOAD=/tmp/ptrace.so
+level06@OverRide:~$ echo $LD_PRELOAD
+/tmp/ptrace.so
+
+level06@OverRide:~$ ltrace ./level06
+ERROR: ld.so: object '/tmp/ptrace.so' from LD_PRELOAD cannot be preloaded: ignored.
+__libc_start_main(0x8048879, 1, -10412, 0x8048990, 0x8048a00 <unfinished ...>
+signal(14, 0x0804870f)                                = NULL
+alarm(60)                                             = 0
+puts("********************************"...***********************************
+)           = 36
+puts("*\t\tlevel06\t\t  *"*		level06		  *
+)                           = 16
+puts("********************************"...***********************************
+)           = 36
+printf("-> Enter Login: ")                            = 16
+fgets(-> Enter Login: aaaaaaaa
+"aaaaaaaa\n", 32, 0xf7fccac0)                   = 0xffffd68c
+puts("********************************"...***********************************
+)           = 36
+puts("***** NEW ACCOUNT DETECTED *****"...***** NEW ACCOUNT DETECTED ********
+)           = 36
+puts("********************************"...***********************************
+)           = 36
+printf("-> Enter Serial: ")                           = 17
+__isoc99_scanf(0x8048a60, -10616, 0xf7fccac0, 0x8048746, 60-> Enter Serial: 1
+) = 1
+strcspn("aaaaaaaa\n", "\n")                           = 8
+strnlen(-10612, 32, -10652, 0, -10568)                = 8
+ptrace(0, 0, 1, 0, -10568)                            = 0
++++ exited (status 1) +++
+
+Ensuite nous prenons visiblement le 4eme char de notre Login pour appliquer un xor 0x1337 == 4919 et ajouter 0x5eeded == 6221293 et stocker le resultat.
+
+   0x080487ed <+165>:	mov    eax,DWORD PTR [ebp+0x8]	Login
+   0x080487f0 <+168>:	add    eax,0x3	Login[3]
+   0x080487f3 <+171>:	movzx  eax,BYTE PTR [eax]
+   0x080487f6 <+174>:	movsx  eax,al
+   0x080487f9 <+177>:	xor    eax,0x1337	Login[3] ^ 4919
+   0x080487fe <+182>:	add    eax,0x5eeded	eax + 6221293 = local_14
+
+Ensuite nous bouclons jusqu'a len(Login) qui est egale a 32 maximum.
+Si un caractere de Login == ' ' le programme exit.
+L'objectif est qu'a la fin de la boucle, le parametre Serial (uint) soit egal a la variable stocke precedemment, qui sera encore modifiee pendant la boucle.
+
+   0x08048823 <+219>:	mov    eax,DWORD PTR [ebp-0x14]		local_18 = 0
+   0x08048826 <+222>:	add    eax,DWORD PTR [ebp+0x8]		Login[local_18]
+   0x08048829 <+225>:	movzx  eax,BYTE PTR [eax]
+   0x0804882c <+228>:	movsx  eax,al
+   0x0804882f <+231>:	mov    ecx,eax
+   0x08048831 <+233>:	xor    ecx,DWORD PTR [ebp-0x10]		Login[local_18] ^ local_14 = ecx
+   0x08048834 <+236>:	mov    edx,0x88233b2b	2284010283
+   0x08048839 <+241>:	mov    eax,ecx
+   0x0804883b <+243>:	mul    edx		2284010283 * ecx = edx
+   0x0804883d <+245>:	mov    eax,ecx
+   0x0804883f <+247>:	sub    eax,edx	ecx - edx = eax
+   0x08048841 <+249>:	shr    eax,1	eax / 2
+   0x08048843 <+251>:	add    eax,edx	eax + edx
+   0x08048845 <+253>:	shr    eax,0xa	eax / 1024
+   0x08048848 <+256>:	imul   eax,eax,0x539	eax * 1337
+   0x0804884e <+262>:	mov    edx,ecx
+   0x08048850 <+264>:	sub    edx,eax	(ecx)edx - eax
+   0x08048852 <+266>:	mov    eax,edx
+   0x08048854 <+268>:	add    DWORD PTR [ebp-0x10],eax		(ecx)(edx)eax + local_14
+
+Donc, il suffit de regarder notre variable a la fin de la boucle grace au bypass de ptrace et de rentrer le serial adapte a son input ulterieurement.
+
+Pour l'exemple:
+-> Enter Login: abcdef
+
+(gdb)
+0x08048863 in auth ()
+1: x/10i $pc
+=> 0x8048863 <auth+283>:	mov    eax,DWORD PTR [ebp+0xc]		Login
+   0x8048866 <auth+286>:	cmp    eax,DWORD PTR [ebp-0x10]		Login == local_14
+   0x8048869 <auth+289>:	je     0x8048872 <auth+298>
+   0x804886b <auth+291>:	mov    eax,0x1
+   0x8048870 <auth+296>:	jmp    0x8048877 <auth+303>
+   0x8048872 <auth+298>:	mov    eax,0x0
+   0x8048877 <auth+303>:	leave
+   0x8048878 <auth+304>:	ret
+   0x8048879 <main>:	push   ebp
+   0x804887a <main+1>:	mov    ebp,esp
+
+(gdb) x/x $ebp-0x10
+0xffffd638:	0x005f1ae2		local_14 = crypt(abcdef) == 6232802
+
+
+level06@OverRide:~$ ./level06
+***********************************
+*		level06		  *
+***********************************
+-> Enter Login: Jaguar
+***********************************
+***** NEW ACCOUNT DETECTED ********
+***********************************
+-> Enter Serial: 6232814
+Authenticated!
+$ whoami
+level07
+$ cat /home/users/level07/.pass
+GbcPDRgsFK77LNnnuh7QyFYA2942Gp8yKj9KrWD8

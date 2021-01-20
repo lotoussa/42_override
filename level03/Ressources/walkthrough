@@ -1,0 +1,219 @@
+level03@OverRide:~$ checksec --file ./level03
+RELRO           STACK CANARY      NX            PIE             RPATH      RUNPATH      FILE
+Partial RELRO   Canary found      NX enabled    No PIE          No RPATH   No RUNPATH   ./level03
+
+Au vu des protections, il ne s'agit potentiellement pas ici d'un programme vulnerable, meme s'il est bien evidemment possible de s'attaquer a ces protections.
+
+level03@OverRide:~$ strings ./level03
+/lib/ld-linux.so.2
+__gmon_start__
+libc.so.6
+_IO_stdin_used
+fflush
+srand
+__isoc99_scanf
+puts
+time
+__stack_chk_fail
+printf
+getchar
+stdout
+system
+__libc_start_main
+GLIBC_2.7
+GLIBC_2.4
+GLIBC_2.0
+PTRh`
+QVhZ
+Q}|u
+`sfg
+~sf{
+}|a3
+@^_]
+UWVS
+[^_]
+Congratulations!
+/bin/sh
+Invalid Password
+***********************************
+*		level03		**
+Password:
+;*2$"
+
+(gdb) disass decrypt
+Dump of assembler code for function decrypt:
+   0x08048660 <+0>:	push   ebp
+   0x08048661 <+1>:	mov    ebp,esp
+   ...
+   0x08048673 <+19>:	mov    DWORD PTR [ebp-0x1d],0x757c7d51 # 'Q}|u'
+   0x0804867a <+26>:	mov    DWORD PTR [ebp-0x19],0x67667360 # '`sfg'
+   0x08048681 <+33>:	mov    DWORD PTR [ebp-0x15],0x7b66737e # '~sf{'
+   0x08048688 <+40>:	mov    DWORD PTR [ebp-0x11],0x33617c7d # '}|a3'
+   ...
+
+(gdb) disass main
+Dump of assembler code for function main:
+   0x0804885a <+0>:	push   ebp
+   0x0804885b <+1>:	mov    ebp,esp
+	...
+	   0x080488b1 <+87>:	mov    eax,0x8048a85 # "%d"
+   0x080488b6 <+92>:	lea    edx,[esp+0x1c]
+   0x080488ba <+96>:	mov    DWORD PTR [esp+0x4],edx
+   0x080488be <+100>:	mov    DWORD PTR [esp],eax
+   0x080488c1 <+103>:	call   0x8048530 <__isoc99_scanf@plt>
+   0x080488c6 <+108>:	mov    eax,DWORD PTR [esp+0x1c]
+   0x080488ca <+112>:	mov    DWORD PTR [esp+0x4],0x1337d00d
+   0x080488d2 <+120>:	mov    DWORD PTR [esp],eax
+   0x080488d5 <+123>:	call   0x8048747 <test>
+   ...
+
+Donc visiblement le programme a l'air de prendre une input avant de l'envoyer a test ou elle fait subir une soustraction de son entier a l'hexa 1337d00d = 322424845, avant d'aller a son case correspondant et de dechiffrer le parametre envoye afin de le comparer a la chaine "Congratulations!" et d'executer un bin sh ou dans le cas d'un echec puts Invalid Password.
+
+Nous allons donc essayer tout les types de parametre possible a envoyer au case de test afin de voir quel input de soustraction correspond au dechiffrage pour correspondre a notre chaine desiree.
+
+level03@OverRide:~$ for((i = 1; i < 30; i++)); do echo $i ; done
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+
+level03@OverRide:~$ for((i = 1; i < 30; i++)); do echo $((0x1337d00d - $i)) ; done
+322424844
+322424843
+322424842
+322424841
+322424840
+322424839
+322424838
+322424837
+322424836
+322424835
+322424834
+322424833
+322424832
+322424831
+322424830
+322424829
+322424828
+322424827
+322424826
+322424825
+322424824
+322424823
+322424822
+322424821
+322424820
+322424819
+322424818
+322424817
+322424816
+
+level03@OverRide:~$ for((i = 1; i < 30; i++)); do echo $((0x1337d00d - $i)) | ./level03 | grep -v "*" ; done
+Password:
+Invalid Password
+Password:
+Invalid Password
+Password:
+Invalid Password
+Password:
+Invalid Password
+Password:
+Invalid Password
+Password:
+Invalid Password
+Password:
+Invalid Password
+Password:
+Invalid Password
+Password:
+Invalid Password
+Password:
+Invalid Password
+Password:
+Invalid Password
+Password:
+Invalid Password
+Password:
+Invalid Password
+Password:
+Invalid Password
+Password:
+Invalid Password
+Password:
+Invalid Password
+Password:
+Invalid Password
+Password:
+Password:
+Invalid Password
+Password:
+Invalid Password
+Password:
+Invalid Password
+Password:
+Invalid Password
+Password:
+Invalid Password
+Password:
+Invalid Password
+Password:
+Invalid Password
+Password:
+Invalid Password
+Password:
+Invalid Password
+Password:
+Invalid Password
+Password:
+Invalid Password
+
+Il y a bien une des input qui nous renvoi des informations differentes des autres input, regardons laquelle c'est et executons celle-ci dans un autre contexte.
+
+17
+Password:
+Invalid Password
+18
+Password:
+19
+Password:
+Invalid Password
+
+level03@OverRide:~$ echo $((0x1337d00d - 18))
+322424827
+
+level03@OverRide:~$ ./level03
+***********************************
+*		level03		**
+***********************************
+Password:322424827
+$ whoami
+level04
+$ cat /home/users/level04/.pass
+kgv3tkEb9h2mLkRsPkXRfc2mHbjMxQzvb2FrgKkf
+
+bruh

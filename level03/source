@@ -1,0 +1,134 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <time.h>
+
+#
+(gdb) shell nm ./level03 | grep T
+08049ff4 d _GLOBAL_OFFSET_TABLE_
+08049f18 d __CTOR_END__
+08049f14 d __CTOR_LIST__
+08049f20 D __DTOR_END__
+08049f1c d __DTOR_LIST__
+08049f24 d __JCR_LIST__
+08048962 T __i686.get_pc_thunk.bx
+08048960 T __libc_csu_fini
+080488f0 T __libc_csu_init
+0804899c T _fini
+0804843c T _init
+08048540 T _start
+080485f4 T clear_stdin
+08048660 T decrypt
+08048617 T get_unum
+0804885a T main
+0804864f T prog_timeout
+08048747 T test
+#
+
+int			decrypt(int num)
+{
+	uint		len;
+	int			ret;
+	int			in_GS_OFFSET;
+	uint		idx;
+	undefined4	int1;
+	undefined4	int2;
+	undefined4	int3;
+	undefined4	int4;
+	int			protec;
+
+	protec = *(int *)(in_GS_OFFSET + 0x14);
+	int1 = 0x757c7d51;
+	int2 = 0x67667360;
+	int3 = 0x7b66737e;
+	int4 = 0x33617c7d;
+	len = strlen(&int1);
+	idx = 0;
+	while(idx < len)
+	{
+		*(byte *)((int)&int1 + idx) = (byte)num ^ *(byte *)((int)&int1 + idx);
+		idx = idx + 1;
+	}
+	if (strncmp((char *)&int1, "Congratulations!", 17))
+		ret = system("/bin/sh");
+	else
+		ret = puts("\nInvalid Password");
+	if (protec == *(int *)(in_GS_OFFSET + 0x14))
+		return ret;
+	__stack_chk_fail();
+}
+
+void		test(int param_1,int param_2)
+{
+	int		sub;
+
+	sub = param_2 - param_1;
+	switch(sub) {
+	default:
+		decrypt(rand());
+		break;
+	case 1:
+		decrypt(sub);
+		break;
+	case 2:
+		decrypt(sub);
+		break;
+	case 3:
+		decrypt(sub);
+		break;
+	case 4:
+		decrypt(sub);
+		break;
+	case 5:
+		decrypt(sub);
+		break;
+	case 6:
+		decrypt(sub);
+		break;
+	case 7:
+		decrypt(sub);
+		break;
+	case 8:
+		decrypt(sub);
+		break;
+	case 9:
+		decrypt(sub);
+		break;
+	case 17:
+		decrypt(sub);
+		break;
+	case 18:
+		decrypt(sub);
+		break;
+	case 19:
+		decrypt(sub);
+		break;
+	case 20:
+		decrypt(sub);
+		break;
+	case 21:
+		decrypt(sub);
+		break;
+	case 22:
+		decrypt(sub);
+	}
+	return;
+}
+
+int			main(void)
+{
+	int		num;
+	time_t	time;
+
+	time = time(0);
+	srand(time);
+	puts("***********************************");
+	puts("*\t\tlevel03\t\t**");
+	puts("***********************************");
+	printf("Password:");
+	scanf("%d", &num);
+	test(num, 0x1337d00d);
+	return (0);
+}
+
